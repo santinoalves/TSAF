@@ -5,16 +5,10 @@ Created on Wed Dec  9 13:19:33 2020
 
 @author: viniciussantino
 """
-import pandas as pd
-import TSAF.base.TimeSeries as ts
-import math
 import numpy as np
-from pygam import LinearGAM, s, f
-from matplotlib import pyplot as plt
+import pandas as pd
+from pygam import LinearGAM
 from sklearn.linear_model import Lasso
-from sklearn.model_selection import KFold
-from sklearn.metrics import mean_absolute_error
-from TSAF.base import TSAFSeries
 
 """
 #define class to system requirements
