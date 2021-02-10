@@ -14,7 +14,7 @@ from matplotlib import pyplot as plt
 from sklearn.linear_model import Lasso
 from sklearn.model_selection import KFold
 from sklearn.metrics import mean_absolute_error
-from base import TSAFSeries
+from TSAF.base import TSAFSeries
 
 """
 #define class to system requirements

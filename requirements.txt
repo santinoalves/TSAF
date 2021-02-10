@@ -1,0 +1,30 @@
+certifi==2020.12.5
+cftime @ file:///C:/ci/cftime_1605977750303/work
+cycler==0.10.0
+future @ file:///D:/bld/future_1610147416207/work
+joblib @ file:///tmp/build/80754af9/joblib_1607970656719/work
+kiwisolver @ file:///C:/ci/kiwisolver_1603996595157/work
+matplotlib @ file:///C:/ci/matplotlib-base_1603356257853/work
+mkl-fft==1.2.0
+mkl-random==1.1.1
+mkl-service==2.3.0
+netCDF4==1.5.3
+numpy @ file:///C:/ci/numpy_and_numpy_base_1603468620949/work
+olefile==0.46
+pandas @ file:///C:/ci/pandas_1609008089615/work
+patsy==0.5.1
+Pillow @ file:///C:/ci/pillow_1609786872067/work
+progressbar2 @ file:///home/conda/feedstock_root/build_artifacts/progressbar2_1599661727525/work
+pygam==0.8.0
+pyparsing @ file:///home/linux1/recipes/ci/pyparsing_1610983426697/work
+python-dateutil==2.8.1
+python-utils @ file:///home/conda/feedstock_root/build_artifacts/python-utils_1611682172206/work
+pytz @ file:///tmp/build/80754af9/pytz_1608922264688/work
+scikit-learn @ file:///C:/ci/scikit-learn_1598376983131/work
+scipy @ file:///C:/ci/scipy_1597686737426/work
+six @ file:///C:/ci/six_1605205426665/work
+statsmodels==0.12.1
+threadpoolctl @ file:///tmp/tmp9twdgx9k/threadpoolctl-2.1.0-py3-none-any.whl
+tornado @ file:///C:/ci/tornado_1606935947090/work
+tqdm @ file:///tmp/build/80754af9/tqdm_1609788246169/work
+wincertstore==0.2

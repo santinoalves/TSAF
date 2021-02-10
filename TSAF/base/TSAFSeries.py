@@ -63,7 +63,7 @@ class TSAFSeries(Series):
 
 
 def _seasonality_detector(self, period_season: [int] = None,
-                          names_season: [str] = None, freq_sample: [int] = None, show_analysis: bool = None) -> pd.DataFrame:
+                          names_season: [str] = None, freq_sample: [int] = None, show_analysis: bool = None) -> DataFrame:
     self.freq_sample = freq_sample
     self.names_season = names_season
     self.period_season = period_season
