@@ -16,6 +16,12 @@ import pandas as pd
 from netCDF4 import Dataset, num2date
 from pandas.io.json._json import JsonReader
 from tqdm import tqdm
+import boto3
+from boto3.s3.transfer import TransferConfig
+import os
+from urllib.parse import urlparse
+from botocore import UNSIGNED
+from botocore.config import Config
 
 
 # https://s3-ap-southeast-2.amazonaws.com/imos-data/IMOS/ANMN/NRS/NRSMAI/aggregated_timeseries/IMOS_ANMN-NRS_SZ_20080411_NRSMAI_FV01_PSAL-aggregated-timeseries_END-20200522_C-20201207.nc
@@ -81,7 +87,28 @@ def load_data_from_site(site: str = None, sensor: str = None):
     elif dicSites.get(site) is not None:
         sitesData = dicSites.get(site)
         _loadSensorsFromSite(sitesData, sensor)
+def readDataFromAWS(bucket,s3_path,exception, station=None):
 
+    # Create Session
+    session = boto3.Session()
+
+    # Initiate S3 Resource anonimous
+    s3 = session.resource('s3', config=Config(signature_version=UNSIGNED))
+
+    # Select Your S3 Bucket
+    bucket = s3.Bucket(bucket)
+    print(s3.Bucket)
+    dir = os.getcwd()
+    download_path = os.path.join(dir, 'downloads', )
+    print(download_path)
+    # Iterate All Objects in Your S3 Bucket Over the for Loop
+    for s3_object in bucket.objects.filter(Prefix=s3_path):
+        path, filename = os.path.split(s3_object.key)
+        if exception not in filename:
+            file_name_with_path = os.path.join(download_path, filename)
+            # Download the file in the sub directories or directory if its available.
+            bucket.download_file(s3_object.key, file_name_with_path)
+    
 
 def _loadSensorsFromSite(sitesData: [dict], sensor: str = None):
     if sensor is None:
@@ -104,6 +131,36 @@ def _loadDataFromDictionary(sensorData: dict = None) -> dict:
     except:
         print("fail to import: %s \n from file: %s", variable_of_interest[0], url)
         return None
+
+def load_IMOS_ts_from_local_data(netcdf_file_url:str = None):
+
+    dir = os.path.dirname(__file__)
+    netcdf_dataset = Dataset(netcdf_file_url)
+
+    site = netcdf_dataset.site_code
+    variables_of_interest = [netcdf_dataset.keywords.split(',')[0]]
+    index_variable = 'instrument_index'
+    dimensional_variable = 'NOMINAL_DEPTH'
+    time_series_of_interest = convert_net_cdf_aggregatedata_in_time_series(netcdf_dataset, variables_of_interest,
+                                                                           index_variable, dimensional_variable)
+    for key in time_series_of_interest.keys():
+        # preparing file name of the output json
+        data_format = "%Y-%m-%dT%H:%M:%SZ"
+        first_date = datetime.datetime.strptime(netcdf_dataset.time_coverage_start,
+                                                data_format)
+        last_date = datetime.datetime.strptime(netcdf_dataset.time_coverage_end,
+                                               data_format)
+        date_format = "%Y-%m-%dT%H-%M-%SZ"
+        json_str_file = site + '@' + key + '@' + datetime.datetime.strftime(first_date,
+                                                                            date_format) + '@' + datetime.datetime.strftime(
+            last_date, date_format)
+        filename = os.path.join(dir, 'data', json_str_file)
+        #
+        for depth in time_series_of_interest[key].keys():
+            series: pd.Series = time_series_of_interest[key][depth]
+            series.to_json(path_or_buf=filename + '@d@' + str(depth) + '.json')
+
+    return time_series_of_interest
 
 
 def load_ts_url(

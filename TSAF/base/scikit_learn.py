@@ -28,12 +28,9 @@ from tensorflow.python.keras.utils.generic_utils import has_arg
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from tensorflow.python.util.tf_export import keras_export
 
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.layers import LSTM
-from keras.layers import Dropout
-from keras.layers import *
-from keras.callbacks import EarlyStopping
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import *
+from tensorflow.keras.callbacks import EarlyStopping
 
 
 class BaseWrapper(object):

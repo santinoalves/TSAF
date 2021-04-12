@@ -1,0 +1,5 @@
+﻿URL,Reference,Station,Lat,Long,depth,beginning,end
+http://imos-data.s3-website-ap-southeast-2.amazonaws.com/?prefix=IMOS/ANMN/NRS/NRSDAR/aggregated_timeseries/,NRSDAR,Darwin,-12.3371,130.69649,22.5,2010-02-09T06:39:46Z,2019-07-23T22:29:59Z
+http://imos-data.s3-website-ap-southeast-2.amazonaws.com/?prefix=IMOS/ANMN/NRS/NRSYON/aggregated_timeseries/,NRSYON,Yongala (GBR lagoon),-19.29946667,147.6227,29.5,2008-09-17T08:00:43Z,2019-08-26T05:00:26Z
+http://imos-data.s3-website-ap-southeast-2.amazonaws.com/?prefix=IMOS/ANMN/NRS/NRSNSI/aggregated_timeseries/,NRSNSI,North Stradbroke Island,-27.34166833,153.5629833,60,2010-12-13T02:28:34Z,2019-03-16T23:14:36Z
+http://imos-data.s3-website-ap-southeast-2.amazonaws.com/?prefix=IMOS/ANMN/NRS/NRSMAI/aggregated_timeseries/,NRSMAI,Maria Island,-42.57979833,148.234317,90,2008-04-11T11:00:52Z,2020-05-22T03:30:01Z

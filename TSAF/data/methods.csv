@@ -1,0 +1,15 @@
+﻿method;benchmark;intepretability;missing;non stationary;complex seasonality;complexity;linear;simulations
+naive;Yes;white box,black box,structural;Yes;No;No;-1;Yes;sliding window, vh cross-validation, rolling window
+ARMA;Yes;white box,black box,structural;Yes;No;No;1;Yes;sliding window, rolling window
+ETS;Yes;white box,black box,structural;No;Yes;Yes;2;Yes;sliding window, rolling window
+Polynomial naive;Yes;white box,black box,structural;Yes;Yes;Yes;0;Yes;sliding window, vh cross-validation, rolling window
+ARIMA;Yes;white box,black box,structural;Yes;Yes;No;2;Yes;sliding window, rolling window
+STL;Yes;white box,black box,structural;Yes;Yes;No;2;Yes;sliding window, rolling window
+Profet;No;white box,black box,structural;Yes;Yes;Yes;3;Yes;sliding window, rolling window
+KNN;No;white box,black box;Yes;Yes;Yes;3;No;sliding window, vh cross-validation, rolling window
+BSTS;No;white box,black box,structural;Yes;Yes;Yes;3;Yes;sliding window, rolling window
+SVR;No;black box;Yes;Yes;Yes;4;No;sliding window, vh cross-validation, rolling window
+ANN;No;black box;Yes;Yes;Yes;4;No;sliding window, vh cross-validation, rolling window
+LSTM;No;black box;Yes;Yes;Yes;4;No;sliding window, vh cross-validation, rolling window
+GRU;No;black box;Yes;Yes;Yes;4;No;sliding window, vh cross-validation, rolling window
+Convolutional;No;black box;Yes;Yes;Yes;4;No;sliding window, vh cross-validation, rolling window

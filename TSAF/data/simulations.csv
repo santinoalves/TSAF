@@ -1,0 +1,4 @@
+simulation method;statistical priority;must be stationary
+sliding window;1;0
+vh cross-validation;0;1
+rolling window;1;0

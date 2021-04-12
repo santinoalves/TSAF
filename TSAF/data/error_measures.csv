@@ -1,0 +1,11 @@
+﻿Class;Methods;inter-dataset;domain interpretation;zero demand suitable;non-linear;Symetric
+Scale-dependent;RMSE;No;Yes;Yes;Yes;No
+Scale-dependent;MAE;No;Yes;Yes;Yes;Yes
+Scale-dependent;MDAE;No;Yes;Yes;Yes;Yes
+scale-free;MAPE;Yes;No;No;Yes;Yes
+scale-free;CC;Yes;No;Yes;No;Yes
+scale-free;PE;Yes;No;No;Yes;Yes
+scale-free;MDAPE;Yes;No;Yes;No;No
+scale-free;MASE;No;No;Yes;Yes;No
+referenced;RELMAE;No;Yes;Yes;Yes;Yes
+referenced;R^2;Yes;Yes;Yes;No;Yes

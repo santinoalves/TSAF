@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+
+<!-- ************************************************************** -->
+<!-- Name: Open Data Archive Demo                                   -->
+<!-- ************************************************************** -->
+<!-- This web page shows a simple Amazon S3 bucket explorer. It     -->
+<!-- provides basic navigation through the logical folder structure -->
+<!-- within an S3 bucket and offers download links for all of the   -->
+<!-- objects contained within the S3 bucket.                        -->
+<!--                                                                -->
+<!-- To use this file, save it as index.html in the root of your S3 -->
+<!-- bucket, make it publicly readable, and launch it via the URL   -->
+<!-- http://your-bucket-name.s3.amazonaws.com/index.html.           -->
+<!-- ************************************************************** -->
+<!-- Author: Amazon Web Services, Inc                               -->
+<!-- ************************************************************** -->
+
+<html lang="en">
+    <head>
+        <title>Open Data Archive Demo</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="shortcut icon" href="http:/aws.amazon.com/favicon.ico">
+        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+        <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.1.0/css/font-awesome.min.css">
+        <link rel="stylesheet" href="http://cdn.datatables.net/plug-ins/725b2a2115b/integration/bootstrap/3/dataTables.bootstrap.css">
+        <style type="text/css"> #tb-s3objects { width: 100% !Important; } </style>
+    </head>
+
+    <!-- DEBUG: Enable this for red outline on all elements -->
+    <style media="screen" type="text/css">/** { outline: 1px red solid; }*/</style>
+
+    <body>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-primary">
+                        <!-- Panel including bucket/folder information and controls -->
+                        <div class="panel-heading clearfix">
+                            <!-- Bucket selection and breadcrumbs -->
+                            <div class="btn-group pull-left">
+                                <div>
+                                    <p>AODN S3 Explorer&nbsp;</p>
+                                </div>
+                                <!-- Bucket selection -->
+                                <div class="btn pull-left" id="bucket">
+                                    <i id="bucket-chooser" style="cursor: pointer;" class="fa fa-bitbucket fa-2x" title="Switch to a different S3 Bucket"></i>
+                                </div>
+                                <!-- Bucket breadcrumbs -->
+                                <div class="pull-right">
+                                    <ul id="breadcrumb" class="btn breadcrumb pull-right">
+                                        <li class="active dropdown">
+                                            <a href="#">&lt;bucket&gt;</a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel including S3 object table -->
+                        <div class="panel-body">
+                            <table class="table table-bordered table-hover table-striped" id="tb-s3objects">
+                                <thead>
+                                    <tr>
+                                        <th>Object</th>
+                                        <th>Folder</th>
+                                        <th>Last Modified</th>
+                                        <th>Size</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-s3objects"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
+
+<script src="http://code.jquery.com/jquery-2.1.1.min.js"></script>
+<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/bootbox.js/4.2.0/bootbox.min.js"></script>
+<script src="http://sdk.amazonaws.com/js/aws-sdk-2.0.13.min.js"></script>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/moment.js/2.7.0/moment.min.js"></script>
+<script src="http://cdn.datatables.net/1.10.2/js/jquery.dataTables.min.js"></script>
+<script src="http://cdn.datatables.net/plug-ins/725b2a2115b/integration/bootstrap/3/dataTables.bootstrap.js"></script>
+
+<script type="text/javascript">
+
+// In the line below, replace BUCKET-NAME with the name of the CORS-enabled Amazon S3 Bucket that you would like this JavaScript to display. Note that Amazon S3 bucket names are case sensitive. If you simply delete BUCKET-NAME, the page will present you with a dialog asking for a bucket name upon loading.
+var s3exp_config = { Bucket: 'imos-data', Prefix: '', Delimiter: '/' };
+
+var s3exp_lister = null;
+var s3exp_columns = { key:1, folder:2, date:3, size:4 };
+
+AWS.config.region = 'ap-southeast-2';
+//console.log('Region: ' + AWS.config.region);
+
+// Initialize S3 SDK and the moment library (for time formatting utilities)
+var s3 = new AWS.S3();
+moment().format();
+
+function bytesToSize(bytes) {
+    var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    if (bytes == 0) return '0 Bytes';
+    var ii = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+    return Math.round(bytes / Math.pow(1024, ii), 2) + ' ' + sizes[ii];
+};
+
+// Custom endsWith function for String prototype
+if (typeof String.prototype.endsWith != 'function') {
+    String.prototype.endsWith = function (str){
+        return this.slice(-str.length) == str;
+    };
+}
+
+function object2href(bucket, object) {
+    return "https://s3-ap-southeast-2.amazonaws.com/" + bucket + "/" + object;
+}
+
+function isfolder(path) {
+    return path.endsWith('/');
+}
+
+// Convert cars/vw/golf.png to golf.png
+function fullpath2filename(path) {
+    return path.replace(/^.*[\\\/]/, '');
+}
+
+// Convert cars/vw/golf.png to cars/vw
+function fullpath2pathname(path) {
+    return path.substring(0, path.lastIndexOf("/"));
+}
+
+// Convert cars/vw/ to vw/
+function prefix2folder(prefix) {
+    var parts = prefix.split('/');
+    return parts[parts.length-2] + '/';
+}
+
+// We are going to generate bucket/folder breadcrumbs. The resulting HTML will
+// look something like this:
+//
+// <li>Home</li>
+// <li>Library</li>
+// <li class="active">Samples</li>
+//
+// Note: this code is a little complex right now so it would be good to find
+// a simpler way to create the breadcrumbs.
+function folder2breadcrumbs(data) {
+    //console.log('Bucket: ' + data.params.Bucket);
+    //console.log('Prefix: ' + data.params.Prefix);
+
+    // The parts array will contain the bucket name followed by all the
+    // segments of the prefix, exploded out as separate strings.
+    var parts = [data.params.Bucket];
+
+    if (data.params.Prefix) {
+        parts.push.apply(parts,
+                         data.params.Prefix.endsWith('/') ?
+                         data.params.Prefix.slice(0, -1).split('/') :
+                         data.params.Prefix.split('/'));
+    }
+
+    //console.log('Parts: ' + parts + ' (length=' + parts.length + ')');
+
+    // Empty the current breadcrumb list
+    $('#breadcrumb li').remove();
+
+    // Now build the new breadcrumb list
+    var buildprefix = '';
+    $.each(parts, function(ii, part) {
+        var ipart;
+
+        // Add the bucket (the bucket is always first)
+        if (ii == 0) {
+            var a = $('<a>').attr('href', '#').text(part);
+            ipart = $('<li>').append(a);
+            a.click(function(e) {
+                e.preventDefault();
+                //console.log('Breadcrumb click bucket: ' + data.params.Bucket);
+                s3exp_config = {Bucket: data.params.Bucket, Prefix: '', Delimiter: data.params.Delimiter};
+                (s3exp_lister = s3list(s3exp_config, s3draw)).go();
+            });
+        // Else add the folders within the bucket
+        } else {
+            buildprefix += part + '/';
+
+            if (ii == parts.length - 1) {
+                ipart = $('<li>').addClass('active').text(part);
+            } else {
+                var a = $('<a>').attr('href', '#').append(part);
+                ipart = $('<li>').append(a);
+
+                // Closure needed to enclose the saved S3 prefix
+                (function() {
+                    var saveprefix = buildprefix;
+                    // //console.log('Part: ' + part + ' has buildprefix: ' + saveprefix);
+                    a.click(function(e) {
+                        e.preventDefault();
+                        //console.log('Breadcrumb click object prefix: ' + saveprefix);
+                        s3exp_config = {Bucket: data.params.Bucket, Prefix: saveprefix, Delimiter: data.params.Delimiter};
+                        (s3exp_lister = s3list(s3exp_config, s3draw)).go();
+                        location.search = "?prefix=" + s3exp_config.Prefix + "";
+                    });
+                })();
+            }
+        }
+        $('#breadcrumb').append(ipart);
+    });
+}
+
+function s3draw(data, complete) {
+    $('li.li-bucket').remove();
+    folder2breadcrumbs(data);
+
+    // Add each part of current path (S3 bucket plus folder hierarchy) into the breadcrumbs
+    $.each(data.CommonPrefixes, function(i, prefix) {
+        // //console.log("Add folder: " + JSON.stringify(prefix));
+        $('#tb-s3objects').DataTable().rows.add([{Key: prefix.Prefix}]).draw();
+    });
+
+    // Add S3 objects to DataTable
+    // clean data.Contents
+    var contents = cleanData(data.Contents);
+    // console.log(contents);
+    if (contents.length + data.CommonPrefixes.length > 0)  {
+        $('#tb-s3objects').DataTable().rows.add(contents).draw().columns.adjust();
+    } else {
+        // Full key is specified so get the S3 object.  Object is retrieved directly as well as listed in the table.
+        var params = {
+            Bucket: s3exp_config.Bucket,
+            Key: s3exp_config.Prefix
+        };
+        s3.makeUnauthenticatedRequest('headObject', params, function (err, result) {
+            if (!err) {
+                contents = [{Key: s3exp_config.Prefix, LastModified: result.LastModified, Size: result.ContentLength}];
+                $('#tb-s3objects').DataTable().rows.add(contents).draw().columns.adjust();
+            }
+        });
+    }
+}
+
+function cleanData(data) {
+
+    var unwanted = ['list.js', 'index.html', 'error.html', 'robots.txt'];
+    var cleanData = [];
+    $.each(data, function(i, item) {
+        var index = unwanted.indexOf(item.Key);
+        if (index < 0) {
+            cleanData.push(item);
+        }
+    });
+    return cleanData;
+}
+
+function s3list(params, completecb) {
+    //console.log('s3list: ' + JSON.stringify(params));
+    var scope = {
+        Contents: [], CommonPrefixes:[], params: params, stop: false, completecb: completecb
+    };
+
+    return {
+        // This is the callback that the S3 API makes when an S3 listObjects
+        // request completes (successfully or in error). Note that a single call
+        // to listObjects may not be enough to get all objects so we need to
+        // check if the returned data is truncated and, if so, make additional
+        // requests with a 'next marker' until we have all the objects.
+        cb: function (err, data) {
+            if (err) {
+                //console.log('Error: ' + JSON.stringify(err));
+                //console.log('Error: ' + err.stack);
+                scope.stop = true;
+                bootbox.alert("Error accessing S3 bucket " + scope.params.Bucket + ". Error: " + err);
+            } else {
+                // //console.log('Data: ' + JSON.stringify(data));
+
+                // Store marker before filtering data
+                if (data.IsTruncated) {
+                    if (data.NextMarker) {
+                        scope.params.Marker = data.NextMarker;
+                    } else if (data.Contents.length > 0) {
+                        scope.params.Marker = data.Contents[data.Contents.length - 1].Key;
+                    }
+                }
+
+                // Filter the folders out of the listed S3 objects
+                // (could probably be done more efficiently)
+                //console.log("Filter: remove folders");
+                data.Contents = data.Contents.filter(function(el) {
+                    return el.Key !== scope.params.Prefix;
+                });
+
+                // Accumulate the S3 objects and common prefixes
+                scope.Contents.push.apply(scope.Contents, data.Contents);
+                scope.CommonPrefixes.push.apply(scope.CommonPrefixes, data.CommonPrefixes);
+
+                if (scope.stop) {
+                    //console.log('Bucket ' + scope.params.Bucket + ' stopped');
+                } else if (data.IsTruncated) {
+                    //console.log('Bucket ' + scope.params.Bucket + ' truncated');
+                    s3.makeUnauthenticatedRequest('listObjects', scope.params, scope.cb);
+                } else {
+                    // console.log('Bucket ' + scope.params.Bucket + ' has ' + scope.Contents.length + ' objects, including ' + scope.CommonPrefixes.length + ' prefixes');
+                    delete scope.params.Marker;
+                    if (scope.completecb) {
+                        scope.completecb(scope, true);
+                    }
+                }
+            }
+        },
+
+        // Start the spinner, clear the table, make an S3 listObjects request
+        go: function () {
+            scope.cb = this.cb;
+            $('#tb-s3objects').DataTable().clear();
+            s3.makeUnauthenticatedRequest('listObjects', scope.params, this.cb);
+        },
+
+        stop: function () {
+            scope.stop = true;
+            delete scope.params.Marker;
+            if (scope.completecb) {
+                scope.completecb(scope, false);
+            }
+        }
+    };
+}
+
+function promptForBucketInput() {
+    bootbox.prompt("Please enter the S3 bucket name", function(result) {
+        if (result !== null) {
+            s3exp_config = { Bucket: result, Delimiter: '/' };
+            (s3exp_lister = s3list(s3exp_config, s3draw)).go();
+        }
+    });
+}
+
+$.urlParam = function(name){
+    var results = new RegExp('[\?&]' + name + '=([^&#]*)').exec(window.location.href);
+    if (results==null){
+       return null;
+    }
+    else{
+       return results[1] || 0;
+    }
+}
+
+$(document).ready(function(){
+    //console.log('ready');
+
+    // Click handler for bucket button (to allow user to change bucket)
+    $('#bucket-chooser').click(function(e) {
+        promptForBucketInput();
+    });
+
+    function renderKey(data, type, full) {
+        if (isfolder(data)) {
+            return '<a data-s3="folder" data-prefix="' + data + '" href="' + object2href(s3exp_config.Bucket, data) + '">' + prefix2folder(data) + '</a>';
+        } else {
+            return '<a data-s3="object" href="' + object2href(s3exp_config.Bucket, data) + '">' + fullpath2filename(data) + '</a>';
+        }
+    }
+
+    // Initial DataTable settings
+    $('#tb-s3objects').DataTable({
+        language: {
+            zeroRecords: "No file found",
+            loadingRecords: "Loading...",
+            processing: "Processing..."
+        },
+        iDisplayLength: 50,
+        order: [[1, 'asc'], [0, 'asc']],
+        aoColumnDefs: [
+            { "aTargets": [ 0 ], "mData": "Key", "mRender": function (data, type, full) { return (type == 'display') ? renderKey(data, type, full) : data; }, "sType": "key" },
+            { "aTargets": [ 1 ], "mData": "Key", "mRender": function (data, type, full) { return isfolder(data) ? "" : fullpath2pathname(data); } },
+            { "aTargets": [ 2 ], "mData": "LastModified", "mRender": function (data, type, full) { return data ? moment(data).format("YYYY-MM-DD HH:mm:ss") : ""; } },
+            { "aTargets": [ 3 ], "mData": function (source, type, val) { return source.Size ? ((type == 'display') ? bytesToSize(source.Size) : source.Size) : "" } },
+        ]
+    });
+
+    $('#tb-s3objects').DataTable().column(s3exp_columns.key).visible(false);
+    //console.log("jQuery version=" + $.fn.jquery);
+
+    // Custom sort for the Key column so that folders appear before objects
+    $.fn.dataTableExt.oSort['key-asc']  = function(a,b) {
+        var x = (isfolder(a) ? "0-" + a : "1-" + a).toLowerCase();
+        var y = (isfolder(b) ? "0-" + b : "1-" + b).toLowerCase();
+        return ((x < y) ? -1 : ((x > y) ?  1 : 0));
+    };
+
+    // Custom sort for the Key column so that folders appear before objects
+    $.fn.dataTableExt.oSort['key-desc'] = function(a,b) {
+        var x = (isfolder(a) ? "1-" + a : "0-" + a).toLowerCase();
+        var y = (isfolder(b) ? "1-" + b : "0-" + b).toLowerCase();
+        return ((x < y) ? 1 : ((x > y) ? -1 : 0));
+    }
+
+    // Delegated event handler for S3 object/folder clicks. This is delegated
+    // because the object/folder rows are added dynamically and we do not want
+    // to have to assign click handlers to each and every row.
+    $('#tb-s3objects').on('click', 'a', function(event) {
+        event.preventDefault();
+        var target = event.target;
+        //console.log("target href=" + target.href);
+        //console.log("target dataset=" + JSON.stringify(target.dataset));
+
+        // If the user has clicked on a folder then navigate into that folder
+        if (target.dataset.s3 === "folder") {
+            delete s3exp_config.Marker;
+            s3exp_config.Prefix = target.dataset.prefix;
+            location.search = "?prefix=" + s3exp_config.Prefix + "";
+            s3exp_config.Delimiter = "/";
+            (s3exp_lister = s3list(s3exp_config, s3draw)).go();
+        // Else user has clicked on an object so download it in new window/tab
+        } else {
+            window.open(target.href, '_blank');
+        }
+    });
+
+    // Document URL looks like: http://s3.amazonaws.com/mybucket/index.html
+    // If we're launched from a bucket then let's try to determine the bucket
+    // name so we can query it immediately.
+    var urls = document.URL.split('/');
+
+
+    // If initial bucket has been hard-coded above then use it, else try to
+    // derive the initial bucket from the document URL (useful if index.html was
+    // launched directly from within a bucket), else prompt the user.
+    if (s3exp_config.Bucket) {
+
+        if ($.urlParam('prefix')) {
+            // Setting up config for prefix to work
+	        s3exp_config.Prefix = $.urlParam('prefix');
+        }
+        (s3exp_lister = s3list(s3exp_config, s3draw)).go();
+    } else if (urls[urls.length - 3] == 's3-ap-southeast-2.amazonaws.com') {
+        //console.log("Found s3.amazonaws.com, bucket: " + urls[urls.length - 2]);
+        s3exp_config = { Bucket: urls[urls.length - 2], Delimiter: '/' };
+        (s3exp_lister = s3list(s3exp_config, s3draw)).go();
+    } else {
+        promptForBucketInput();
+    }
+});
+
+-->
+</script>

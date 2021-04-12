@@ -47,19 +47,6 @@ def predictMA(model:ARMAResults,data):
             prediction.append(predict_AR(model.maparams,error_))
             if(j<len(data)):
                 error.append(data[j]-prediction[-1])
-                '''
-        if j < 20: 
-            print("predictions original:", model.predict(start=j,end=j))
-            print("residual - error: ",model.resid[j:j+len(model.params)] - error)
-            print("residual: ",model.resid[j:j+len(model.params)])
-            print("error: ",error)
-            print("predictions: ",prediction[-1])
-            print("model params: ",model.params)
-            print("data: ", data[j:j+len(model.params)])
-            print(data[j+1:j+len(model.params)+1][0] - prediction[-1])
-            print("----------------")
-            '''
-            
     return prediction[k:]
             
             
@@ -91,19 +78,4 @@ def predictARMA(model:ARMAResults,data):
                     error.append(0)
                 else:
                     error.append(data[j]-prediction[-1])
-        '''
-        if j <10 :
-            print("j value: ",j)
-            if  j >=l:
-                print("predictions original:", model.predict(start=j,end=j))
-            #print("residual - error: ",model.resid[max(0,j-len(model.maparams)):j] - error_)
-            print("residual: ",model.resid[max(0,j-len(model.maparams)):j])
-            print("error: ",error_)
-            print("predictions: ",prediction[-1])
-            print("ma params: ",model.maparams)
-            print("ar params: ",model.arparams)
-            print("data: ", data[:j+1])
-            #print(data[j+1:j+len(model.params)+1][0] - predictma[-1])
-            print("----------------")
-           ''' 
     return prediction[max(k,l):]

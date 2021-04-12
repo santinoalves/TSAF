@@ -1,0 +1,33 @@
+{
+  "accuracy": [],
+  "beginning": 1219924852.08,
+  "completeness": "measurement",
+  "continuous_observations": 20337,
+  "difference_stationary": {
+    "stationary": "Population",
+    "diff": false,
+    "trend": false
+  },
+  "end": 1590118254.548,
+  "has_zeros": "False",
+  "horizon": 1,
+  "interpretability": "black box",
+  "linear_seasonal_stationary": {
+    "stationary": "No"
+  },
+  "longterm_simulation": "sequential",
+  "null_observations": 37154,
+  "observation": 411327,
+  "period": 900.0,
+  "polynomial_seasonal_stationary": {
+    "stationary": "Sample",
+    "diff": true,
+    "trend": false
+  },
+  "priority": "statistical validity",
+  "real_time": "batch",
+  "stationary": {
+    "stationary": "No"
+  },
+  "windows": 100
+}

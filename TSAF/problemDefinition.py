@@ -9,6 +9,11 @@ import numpy as np
 import pandas as pd
 from pygam import LinearGAM
 from sklearn.linear_model import Lasso
+from TSAF.base.Series import Series
+import statsmodels.tsa.stattools as stat
+from statsmodels.tsa.stattools import kpss
+import datetime
+from enum import Enum
 
 """
 #define class to system requirements
@@ -19,28 +24,28 @@ what was possible to detect and put a warning on the output with the analysis
 and the parameters that the user can set.
 """
 
-def load_json_time_series(file_name: str=None) -> pd.Series:
+'''Load a time series from a JSON file as TSAFSeries'''
+
+
+def load_json_time_series(file_name: str = None) -> Series:
     series: pd.Series = pd.read_json(path_or_buf=file_name, typ='series')
-    return series
+    return Series(series.array, series.index)
 
 
-
-
-def summary_series(time_series: pd.Series):
-    trimmed_time_series = _trim_time_series(time_series)
-    summary = {'observation': len(trimmed_time_series), 'beginning': trimmed_time_series.index[0],
-               'end': trimmed_time_series.index[-1],
+def summary_series(time_series: Series):
+    trimmed_time_series = time_series.trim_time_series
+    summary = {'observation': len(trimmed_time_series),
+               'beginning': (trimmed_time_series.index[0] - datetime.datetime.utcfromtimestamp(0)).total_seconds(),
+               'end': (trimmed_time_series.index[-1] - datetime.datetime.utcfromtimestamp(0)).total_seconds(),
                'period': (trimmed_time_series.index[1] - trimmed_time_series.index[0]).total_seconds(),
                'null_observations': sum(trimmed_time_series.isnull()),
-               'continuos_observations': len(_identifyBiggestContinuosSegment(trimmed_time_series)),
-               'has_zeros': has_zeros(trimmed_time_series)}
+               'continuous_observations': len(
+                   trimmed_time_series.biggest_continuous_segment) if trimmed_time_series.biggest_continuous_segment is not None else 0,
+               'has_zeros': trimmed_time_series.has_zeros}
     return summary
 
 
-
-
-
-def summary_data(timeSeriesDic: {str: pd.Series}):
+def summary_data(timeSeriesDic: {str: Series}):
     summary_dic = dict()
     for key in timeSeriesDic.keys:
         summary_dic[key] = summary_series(timeSeriesDic.get(key))
@@ -51,57 +56,53 @@ def summary_data(timeSeriesDic: {str: pd.Series}):
 # Tidal cycles: 12h24m (average duration of a low tide + a high tide) = 12.4*4 = 50 / 1
 # Daily cycle: 24h = 24*4 = 96 / 4
 # Annual cycle: 365.242199d = 365*24*4 = 35040 / 96
+def analysis_components(time_series: Series = None, type="Oceanography", period_season=None, names_season=None,
+                        freq_sample=None, show_analysis=False):
+    if type != "Oceanography":
+        return time_series.seasonality_detector(period_season, names_season, freq_sample, show_analysis)
+    else:
+        return time_series.seasonality_detector(period_season=[50, 96, 35040],
+                                                names_season=["Tidal", "Daily", "Annual"], freq_sample=[1, 4, 96],
+                                                show_analysis=show_analysis)
 
 
-# poly, linear, diff
-def remove_seasonality(time_series: pd.Series = None, function_type: str = None, period_season: [int] = None,
-                          names_season: [str] = None, freq_sample: [int] = None) -> pd.Series:
-    # data preparation
-    dataset = pd.DataFrame()
-    index: int = 0
-    for name in names_season:
-        new_index = list(range(period_season[index]))
-
-        new_index = list(np.floor_divide(new_index, freq_sample[index]))
-
-        new_index = new_index * (int(len(time_series) / period_season[index]) + 1)
-        dataset[name] = new_index[0:len(time_series)]
-        index = index + 1
-    dataset['values'] = time_series.values
-    dataset = dataset.dropna()
-    data = dataset.to_numpy()
-    independent_variables = data[:, 0:-1]
-    dependent_variable = data[:, -1]
-    if function_type:
-        if function_type == 'poly':
-            gam = LinearGAM(n_splines=25).fit(X=independent_variables, y=dependent_variable)
-        elif function_type == 'linear':
-            reg = Lasso().fit(X=independent_variables, y=dependent_variable)
-        elif function_type == 'diff':
-            return time_series.diff()
+#  "diff" , callable object
+def remove_seasonality(time_series: Series = None, seasonal_function=None, period_season: [int] = None,
+                       names_season: [str] = None, freq_sample: [int] = None) -> Series:
+    if period_season == None:
+        period_season = [50, 96, 2688, 35040]
+        names_season = ["Tidal", "Daily", "Moon cycle", "Annual"]
+        freq_sample = [1, 4, 48, 96]
+    if seasonal_function == None:
+        return None
+    elif isinstance(seasonal_function, str) and seasonal_function == "diff":
+        return Series(time_series.diff())
+    elif isinstance(seasonal_function, str) and (seasonal_function == "poly" or seasonal_function == "linear"):
+        return time_series.remove_seasonality(seasonal_function, period_season, names_season, freq_sample)
 
 
-
-def identify_time_series_characteristics(timeSeries: pd.Series):
-    characteristics = dict()
-
+def identify_time_series_characteristics(timeSeries: Series):
     # test stationary
     # find the longest segment of the timeseries free of missing values
     # apply adfuller and kpss to test stationarity, if any of the are positive
     # stationary = positive
 
     # stationary is using 10% level
-    statistical_level = '10%'
-    subseries = _identifyBiggestContinuosSegment(timeSeries)
-    import statsmodels.tsa.stattools as stat
-    from statsmodels.tsa.stattools import kpss
+    statistical_level = '5%'
+    significant_level = 0.05
+    subseries = timeSeries.biggest_continuous_segment
+
     print('calculation ADF test')
     adf_test = stat.adfuller(subseries,
                              maxlag=200)  # Augmented Dickey Fuller detect strict stationary and difference stationary
+    # print(adf_test[-1].H0)
+    # print(adf_test[-1].HA)
     print('calculating kpss test')
     kpss_test = kpss(subseries,
                      regression='c',
                      nlags='auto')  # Kwiatkowski-Phillips-Schmidt-Shin detect strict stationary and trend stationary
+    # print(kpss_test[-1].H0)
+    # print(kpss_test[-1].HA)
     # there is a good practical explanation on: https://www.analyticsvidhya.com/blog/2018/09/non-stationary-time-series-python/
     kpss_stationary = kpss_test[0] <= kpss_test[3][
         statistical_level]  # fail to reject the null hypothesis, the series is stationary
@@ -130,22 +131,51 @@ def identify_time_series_characteristics(timeSeries: pd.Series):
 
     elif kpss_stationary:
         characteristics["stationary"] = "Sample"
-        characteristics["diff"] = True
-        characteristics["trend"] = False
-    elif adf_stationary:
-        characteristics["stationary"] = "Sample"
         characteristics["diff"] = False
         characteristics["trend"] = True
+    elif adf_stationary:
+        characteristics["stationary"] = "Sample"
+        characteristics["diff"] = True
+        characteristics["trend"] = False
     else:
         characteristics["stationary"] = "No"
 
     if kpss_stationary_na_free and adf_stationary_na_free:
         characteristics["stationary"] = "Population"
-    else:
-        characteristics["stationary"] = "No"
-        # generate IAC
 
     return characteristics
+
+class TypeStationaritySeries(Enum):
+    Stationary = 1
+    Linear = 2
+    Polynomial = 3
+    Diff = 4
+    Fail = 5
+
+def filter_parameters(methods: pd.DataFrame = None, measures: pd.DataFrame = None, filters: dict = None) -> (
+pd.DataFrame, pd.DataFrame, dict):
+    filtered_methods = pd.DataFrame(methods.copy())
+    filtered_measures = pd.DataFrame(measures.copy())
+    pipe_config = dict()
+    type_series:TypeStationaritySeries = TypeStationaritySeries.Stationary
+    #generate filters
+    if filters['priority'] == 'statistical validity':
+        type_series = TypeStationaritySeries.Stationary if filters['stationary']['stationary'] != 'No' else (TypeStationaritySeries.Linear if 'No' != filters['linear_seasonal_stationary']['stationary'] else (TypeStationaritySeries.Polynomial if filters['polynomial_seasonal_stationary']['stationary'] != 'No' else (TypeStationaritySeries.Diff if filters['difference_stationary']['stationary'] != 'No' and (filters['horizon'] <= 1 or filters['longterm_simulation'] == 'sequential') else TypeStationaritySeries.Fail)))
+    if type_series == TypeStationaritySeries.Stationary:#consider all the applications based on the statistics from data.
+        print("code here... case not implemented yet.")
+    elif type_series == TypeStationaritySeries.Fail:
+        print("code here... case not implemented yet.")
+    else:
+        filtered_methods['valid_interpretability'] = filtered_methods['intepretability'].apply(lambda x: filters['interpretability'] in x)
+        filtered_methods['valid_missing'] = filtered_methods['missing'].apply(lambda x: True if filters['null_observations'] == 0 else x)
+
+    #apply filters on methods
+    for column in filtered_methods.columns[len(methods.columns):]:
+        filtered_methods = filtered_methods[filtered_methods.eval(filtered_methods[column])]
+
+    return (filtered_methods, filtered_measures, pipe_config)
+
+
 
 
 def identify_data_characteristics(timeSeries: [pd.Series]):
